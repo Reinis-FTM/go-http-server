@@ -1,0 +1,4 @@
+Request line:
+- Method: GET
+- Target: /
+- Version: 1.1

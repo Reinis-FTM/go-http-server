@@ -1,0 +1,11 @@
+Listening for TCP traffic on :42069
+Accepted connection from [::1]:22020
+read: POST /coffee HTTP/1.1
+read: Host: localhost:42069
+read: User-Agent: curl/8.11.1
+read: Accept: */*
+read: Content-Type: application/json
+read: Content-Length: 22
+read: 
+ERROR: read tcp [::1]:42069->[::1]:22020: wsarecv: An existing connection was forcibly closed by the remote host.read: {"flavor":"dark mode"}
+Connection to  [::1]:22020 closed

@@ -1,0 +1,9 @@
+Listening for TCP traffic on :42069
+Request line:
+- Method: GET
+- Target: /prime/agen
+- Version: 1.1
+Request line:
+- Method: GET
+- Target: /prime/agen
+- Version: 1.1

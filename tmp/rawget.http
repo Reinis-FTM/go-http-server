@@ -1,0 +1,8 @@
+Listening for TCP traffic on :42069
+Accepted connection from [::1]:10847
+read: GET /coffee HTTP/1.1
+read: Host: localhost:42069
+read: User-Agent: curl/8.11.1
+read: Accept: */*
+read: 
+ERROR: read tcp [::1]:42069->[::1]:10847: wsarecv: An existing connection was forcibly closed by the remote host.Connection to  [::1]:10847 closed
