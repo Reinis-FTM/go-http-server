@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"httpfromtcp/internal/request"
@@ -25,7 +24,7 @@ type HandlerError struct {
 	Message    string
 }
 
-type Handler func(w io.Writer, req *request.Request) *HandlerError
+type Handler func(w *response.Writer, req *request.Request)
 
 func Serve(port int, handler Handler) (*Server, error) {
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
@@ -82,12 +81,7 @@ func (s *Server) handle(conn net.Conn) {
 		)
 		// Return a proper HTTP error so clients don’t see a reset.
 		_, _ = io.WriteString(conn, "HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n")
-		// hErr := &HandlerError{
-		// 	StatusCode: response.BAD_REQUEST,
-		// 	Message:    err.Error(),
-		// }
 
-		// hErr.Write(conn)
 		return
 	}
 
@@ -95,19 +89,11 @@ func (s *Server) handle(conn net.Conn) {
 	target := req.RequestLine.RequestTarget
 
 	// Build your response
-	writer := bytes.NewBuffer([]byte{})
-	handleError := s.handler(writer, req)
-	body := writer.Bytes()
-
-	status := response.OK
-
-	if handleError != nil {
-		status = handleError.StatusCode
-		body = []byte(handleError.Message)
-	}
+	writer := response.NewWriter(conn)
+	s.handler(writer, req)
 
 	// 1) status line
-	if err := response.WriteStatusLine(conn, status); err != nil {
+	if err := writer.WriteStatusLine(writer.Status); err != nil {
 		log.Printf("%s\t%s\t%s\t%d\t%s\terr=%q",
 			remoteHost, method, target, 500, fmtDur(time.Since(start)), err.Error(),
 		)
@@ -115,8 +101,8 @@ func (s *Server) handle(conn net.Conn) {
 	}
 
 	// 2) headers (with correct Content-Length)
-	h := response.GetDefaultHeaders(len(body))
-	if err := response.WriteHeaders(conn, h); err != nil {
+	h := response.GetDefaultHeaders(len(writer.Body))
+	if err := writer.WriteHeaders(h); err != nil {
 		log.Printf("%s\t%s\t%s\t%d\t%s\terr=%q",
 			remoteHost, method, target, 500, fmtDur(time.Since(start)), err.Error(),
 		)
@@ -124,7 +110,7 @@ func (s *Server) handle(conn net.Conn) {
 	}
 
 	// 3) body
-	_, err = conn.Write(body)
+	_, err = writer.WriteBody(writer.Body)
 	if err != nil {
 		log.Printf("%s\t%s\t%s\t%d\t%s\terr=%q",
 			remoteHost, method, target, 500, fmtDur(time.Since(start)), err.Error(),
@@ -134,6 +120,6 @@ func (s *Server) handle(conn net.Conn) {
 
 	// Access log (success)
 	log.Printf("%s\t%s\t%s\t%d\t%s",
-		remoteHost, method, target, int(status), fmtDur(time.Since(start)),
+		remoteHost, method, target, int(writer.Status), fmtDur(time.Since(start)),
 	)
 }

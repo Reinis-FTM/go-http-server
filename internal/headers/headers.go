@@ -35,6 +35,11 @@ func (h Headers) Set(name, value string) {
 	}
 }
 
+func (h Headers) Override(name, value string) {
+	name = strings.ToLower(name)
+	h[name] = value
+}
+
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	off := 0
 	for {
@@ -72,7 +77,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		nameRaw := line[:colon]
 
 		// Field-name MUST NOT contain SP/HTAB anywhere.
-		if bytes.IndexAny(nameRaw, " \t") != -1 {
+		if bytes.ContainsAny(nameRaw, " \t") {
 			return 0, false, ErrMalformedHeaderLine
 		}
 

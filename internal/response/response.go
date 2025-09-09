@@ -26,16 +26,6 @@ var StatusCodeName = map[StatusCode]string{
 
 const httpVersion = "HTTP/1.1"
 
-// WriteStatusLine writes: "HTTP/1.1 200 OK\r\n"
-func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
-	reason, ok := StatusCodeName[statusCode]
-	if !ok {
-		reason = "Unknown"
-	}
-	_, err := fmt.Fprintf(w, "%s %d %s\r\n", httpVersion, int(statusCode), reason)
-	return err
-}
-
 // GetDefaultHeaders returns a fresh headers map containing sensible defaults.
 // Keys are stored lowercase to match your headers.Headers behavior.
 func GetDefaultHeaders(contentLen int) headers.Headers {
@@ -46,21 +36,58 @@ func GetDefaultHeaders(contentLen int) headers.Headers {
 	return h
 }
 
-// WriteHeaders writes the provided headers as "Key: Value\r\n" lines,
-// sorted by key for deterministic output, and then writes the final
-// blank line that terminates the header section.
-//
-// NOTE: This function DOES NOT compute Content-Length for you.
-// Pass in headers from GetDefaultHeaders(len(body)) and then override/add.
-func WriteHeaders(w io.Writer, hdrs headers.Headers) error {
-	if hdrs == nil {
-		_, err := io.WriteString(w, "\r\n")
+type Writer struct {
+	writer       io.Writer
+	WriterStatus WriterStatus
+	Status       StatusCode
+	Headers      headers.Headers
+	Body         []byte
+}
+
+type WriterStatus int
+
+const (
+	WritingStatusLine WriterStatus = iota + 1
+	WritingHeaders
+	WritingBody
+)
+
+var WriterStatusName = map[WriterStatus]string{
+	WritingStatusLine: "WRITING_STATUS_LINE",
+	WritingHeaders:    "WRITING_HEADERS",
+	WritingBody:       "WRITING_BODY",
+}
+
+func NewWriter(conn io.Writer) *Writer {
+	return &Writer{writer: conn}
+}
+
+func (w *Writer) SetBody(body []byte) {
+	w.Body = body
+}
+
+func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
+	reason, ok := StatusCodeName[statusCode]
+	if !ok {
+		reason = "Unknown"
+	}
+	_, err := fmt.Fprintf(w.writer, "%s %d %s\r\n", httpVersion, int(statusCode), reason)
+	return err
+}
+
+func (w *Writer) WriteHeaders(headers headers.Headers) error {
+	if headers == nil {
+		_, err := io.WriteString(w.writer, "\r\n")
 		return err
 	}
 
+	for l := range w.Headers {
+		headers.Override(l, w.Headers.Get(l))
+	}
+
 	// Collect & sort keys (case-insensitive)
-	keys := make([]string, 0, len(hdrs)) // len=0, cap=len(hdrs)
-	for k := range hdrs {
+	keys := make([]string, 0, len(headers)) // len=0, cap=len(hdrs)
+	for k := range headers {
 		keys = append(keys, strings.ToLower(k))
 	}
 	sort.Strings(keys)
@@ -68,12 +95,17 @@ func WriteHeaders(w io.Writer, hdrs headers.Headers) error {
 	// Emit "Key: Value\r\n" for each
 	for _, k := range keys {
 		display := textproto.CanonicalMIMEHeaderKey(k)
-		if _, err := fmt.Fprintf(w, "%s: %s\r\n", display, hdrs.Get(k)); err != nil {
+		if _, err := fmt.Fprintf(w.writer, "%s: %s\r\n", display, headers.Get(k)); err != nil {
 			return err
 		}
 	}
 
 	// Final CRLF to end the header block
-	_, err := io.WriteString(w, "\r\n")
+	_, err := io.WriteString(w.writer, "\r\n")
 	return err
+}
+
+func (w *Writer) WriteBody(p []byte) (int, error) {
+
+	return w.writer.Write(p)
 }
