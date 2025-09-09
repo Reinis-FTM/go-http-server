@@ -1,28 +1,35 @@
 package main
 
 import (
-	"httpfromtcp/internal/headers"
+	"fmt"
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
 	"httpfromtcp/internal/server"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 )
 
 const PORT = 42069
 
+var client = &http.Client{
+	Transport: &http.Transport{
+		ForceAttemptHTTP2: false, // disable HTTP/2
+	},
+}
+
 func main() {
 	server, err := server.Serve(PORT, func(w *response.Writer, req *request.Request) {
-		w.Headers = headers.NewHeaders()
 		w.Headers.Set("content-type", "text/html")
 
 		if req.RequestLine.RequestTarget == "/yourproblem" {
 			w.Status = response.BAD_REQUEST
 
-			body := `
-<html>
+			body := `<html>
   <head>
     <title>400 Bad Request</title>
   </head>
@@ -30,8 +37,7 @@ func main() {
     <h1>Bad Request</h1>
     <p>Your request honestly kinda sucked.</p>
   </body>
-</html>
-			`
+</html>`
 
 			w.SetBody([]byte(body))
 			return
@@ -40,8 +46,7 @@ func main() {
 		if req.RequestLine.RequestTarget == "/myproblem" {
 			w.Status = response.INTERNAL_SERVER_ERROR
 
-			body := `
-<html>
+			body := `<html>
   <head>
     <title>500 Internal Server Error</title>
   </head>
@@ -49,17 +54,41 @@ func main() {
     <h1>Internal Server Error</h1>
     <p>Okay, you know what? This one is on me.</p>
   </body>
-</html>
-			`
+</html>`
 
 			w.SetBody([]byte(body))
 			return
 		}
 
+		if strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin/stream") {
+			w.Status = response.OK
+			w.Headers.Set("Transfer-Encoding", "chunked")
+			w.Headers.Override("content-type", "text/plain")
+
+			target := req.RequestLine.RequestTarget
+			req, err := http.NewRequest("GET", "https://httpbin.org/"+target[len("/httpbin/"):], nil)
+			if err != nil {
+				panic(err)
+			}
+
+			// Just to be explicit:
+			req.Proto = "HTTP/1.1"
+			req.ProtoMajor = 1
+			req.ProtoMinor = 1
+
+			resp, err := client.Do(req)
+			if err != nil {
+				panic(err)
+			}
+			defer resp.Body.Close()
+
+			body, _ := io.ReadAll(resp.Body)
+			return
+		}
+
 		w.Status = response.OK
 
-		body := `
-<html>
+		body := `<html>
   <head>
     <title>200 OK</title>
   </head>
@@ -67,7 +96,7 @@ func main() {
     <h1>Success!</h1>
     <p>Your request was an absolute banger.</p>
   </body>
-</html>			`
+</html>`
 
 		w.SetBody([]byte(body))
 	})

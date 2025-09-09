@@ -109,3 +109,13 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 
 	return w.writer.Write(p)
 }
+
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+
+	return 0, nil
+}
+
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+
+	return 0, nil
+}

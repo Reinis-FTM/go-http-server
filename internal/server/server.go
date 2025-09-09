@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"httpfromtcp/internal/headers"
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
 	"io"
@@ -90,6 +91,8 @@ func (s *Server) handle(conn net.Conn) {
 
 	// Build your response
 	writer := response.NewWriter(conn)
+	writer.Headers = headers.NewHeaders()
+
 	s.handler(writer, req)
 
 	// 1) status line

@@ -25,6 +25,10 @@ func (h Headers) Get(name string) string {
 	return h[strings.ToLower(name)]
 }
 
+func (h Headers) Delete(name string) {
+	delete(h, strings.ToLower(name))
+}
+
 func (h Headers) Set(name, value string) {
 	name = strings.ToLower(name)
 
