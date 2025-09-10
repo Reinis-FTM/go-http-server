@@ -102,7 +102,6 @@ func main() {
 				n, rerr := f.Read(buf)
 				if n > 0 {
 					w.Body = append(w.Body, buf[:n]...)
-
 				}
 				if rerr == io.EOF {
 					break
