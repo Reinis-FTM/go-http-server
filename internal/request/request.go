@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"httpfromtcp/internal/headers"
 	"io"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -59,8 +58,8 @@ var (
 	ErrRequestBodyExceedsCL   = errors.New("http body exceeds content length")
 
 	// Precompiled regexes for supported methods and version.
-	methodRE  = regexp.MustCompile(`^(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH)$`)
-	versionRE = regexp.MustCompile(`^HTTP/1\.1$`)
+	// methodRE  = regexp.MustCompile(`^(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH)$`)
+	// versionRE = regexp.MustCompile(`^HTTP/1\.1$`)
 
 	// Allowed HTTP methods for validation (map lookup is faster than regex).
 	allowedMethods = map[string]struct{}{

@@ -113,12 +113,23 @@ func (s *Server) handle(conn net.Conn) {
 	}
 
 	// 3) body
-	_, err = writer.WriteBody(writer.Body)
-	if err != nil {
-		log.Printf("%s\t%s\t%s\t%d\t%s\terr=%q",
-			remoteHost, method, target, 500, fmtDur(time.Since(start)), err.Error(),
-		)
-		return
+	if writer.Headers.Get("Transfer-Encoding") == "chunked" {
+		_, err := writer.WriteChunkedBody(writer.Body)
+		if err != nil {
+			return
+		}
+		_, err = writer.WriteChunkedBodyDone()
+		if err != nil {
+			return
+		}
+	} else {
+		_, err = writer.WriteBody(writer.Body)
+		if err != nil {
+			log.Printf("%s\t%s\t%s\t%d\t%s\terr=%q",
+				remoteHost, method, target, 500, fmtDur(time.Since(start)), err.Error(),
+			)
+			return
+		}
 	}
 
 	// Access log (success)

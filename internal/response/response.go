@@ -75,34 +75,50 @@ func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
 	return err
 }
 
-func (w *Writer) WriteHeaders(headers headers.Headers) error {
-	if headers == nil {
+func (w *Writer) WriteHeaders(h headers.Headers) error {
+	if h == nil {
 		_, err := io.WriteString(w.writer, "\r\n")
 		return err
 	}
 
-	for l := range w.Headers {
-		headers.Override(l, w.Headers.Get(l))
+	// Overlay writer-level defaults/overrides if you have them
+	if w.Headers != nil {
+		for k := range w.Headers {
+			h.Override(k, w.Headers.Get(k))
+		}
 	}
 
-	// Collect & sort keys (case-insensitive)
-	keys := make([]string, 0, len(headers)) // len=0, cap=len(hdrs)
-	for k := range headers {
-		keys = append(keys, strings.ToLower(k))
+	// If Transfer-Encoding contains "chunked", do not send Content-Length
+	te := strings.ToLower(h.Get("transfer-encoding"))
+	if tokenListContains(te, "chunked") {
+		h.Delete("content-length")
+	}
+
+	// Collect keys (your Headers store uses lowercase keys already)
+	keys := make([]string, 0, len(h))
+	for k := range h {
+		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
-	// Emit "Key: Value\r\n" for each
 	for _, k := range keys {
 		display := textproto.CanonicalMIMEHeaderKey(k)
-		if _, err := fmt.Fprintf(w.writer, "%s: %s\r\n", display, headers.Get(k)); err != nil {
+		if _, err := fmt.Fprintf(w.writer, "%s: %s\r\n", display, h.Get(k)); err != nil {
 			return err
 		}
 	}
 
-	// Final CRLF to end the header block
-	_, err := io.WriteString(w.writer, "\r\n")
+	_, err := io.WriteString(w.writer, "\r\n") // end of header block
 	return err
+}
+
+func tokenListContains(list, token string) bool {
+	for t := range strings.SplitSeq(list, ",") {
+		if strings.TrimSpace(t) == token {
+			return true
+		}
+	}
+	return false
 }
 
 func (w *Writer) WriteBody(p []byte) (int, error) {
@@ -111,11 +127,40 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 }
 
 func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	total := 0
+	for len(p) > 0 {
+		// take up to 1024 bytes
+		chunkSize := min(len(p), 1024)
+		chunk := p[:chunkSize]
+		p = p[chunkSize:]
 
-	return 0, nil
+		// write chunk size in hex followed by \r\n
+		if _, err := fmt.Fprintf(w.writer, "%x\r\n", len(chunk)); err != nil {
+			return total, err
+		}
+
+		// write chunk data
+		n, err := w.writer.Write(chunk)
+		total += n
+		if err != nil {
+			return total, err
+		}
+
+		// write \r\n after chunk
+		if _, err := w.writer.Write([]byte("\r\n")); err != nil {
+			return total, err
+		}
+	}
+	return total, nil
+}
+
+// To finish the body, you need to send the terminating "0\r\n\r\n".
+func (w *Writer) Close() error {
+	_, err := w.writer.Write([]byte("0\r\n\r\n"))
+	return err
 }
 
 func (w *Writer) WriteChunkedBodyDone() (int, error) {
-
-	return 0, nil
+	n, err := w.writer.Write([]byte("0\r\n\r\n"))
+	return n, err
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
 	"httpfromtcp/internal/server"
@@ -83,6 +82,37 @@ func main() {
 			defer resp.Body.Close()
 
 			body, _ := io.ReadAll(resp.Body)
+
+			w.Body = body
+			return
+		}
+
+		if req.RequestLine.RequestTarget == "/video" {
+			w.Status = response.OK
+			w.Headers.Set("Transfer-Encoding", "chunked")
+			w.Headers.Override("content-type", "video/mp4")
+
+			f, err := os.Open("/assets/vim.mp4")
+			if err != nil { /* 404/500 */
+			}
+			defer f.Close()
+
+			buf := make([]byte, 32*1024)
+			for {
+				n, rerr := f.Read(buf)
+				if n > 0 {
+					w.Body = append(w.Body, buf[:n]...)
+
+				}
+				if rerr == io.EOF {
+					break
+				}
+				if rerr != nil {
+					/* handle read error */
+					break
+				}
+			}
+
 			return
 		}
 
